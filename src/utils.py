@@ -9,26 +9,26 @@ import pickle
 import io
 import re
 
-
-class Coherence(object):
+# to be removed; moved to src/models/detector
+class Attributes(object):
     def __init__(self):
         self.types = {
-            'spgen': ['<spgen_f>', '<spgen_m>'],
-            'ilgen': ['<ilgen_f>', '<ilgen_m>', '<ilgen_x>'],
-            'ilnum': ['<ilnum_s>', '<ilnum_p>'],
-            'form': ['<form_f>', '<form_i>']
+            'SpGender': ['<sp:feminine>', '<sp:masculine>'],
+            'IlGender': ['<sp:feminine>', '<il:masculine>', '<il:mixed>'],
+            'IlNumber': ['<singular>', '<plural>'],
+            'Formality': ['<formal>', '<informal>']
         }
-        self.attribs = list(self.types.keys())
+        self.attribute_list = list(self.types.keys())
         self.reverse_map = {
-            '<spgen_f>': '<spgen_m>',
-            '<spgen_m>': '<spgen_f>',
-            '<ilgen_f>': '<ilgen_m>',
-            '<ilgen_m>': '<ilgen_f>',
-            '<ilgen_x>': '<ilgen_f>',
-            '<ilnum_s>': '<ilnum_p>',
-            '<ilnum_p>': '<ilnum_s>',
-            '<form_f>': '<form_i>',
-            '<form_i>': '<form_f>',
+            '<sp:feminine>': '<sp:masculine>',
+            '<sp:masculine>': '<sp:feminine>',
+            '<il:feminine>': '<il:masculine>',
+            '<il:masculine>': '<il:feminine>',
+            '<il:mixed>': '<il:feminine>',
+            '<singular>': '<plural>',
+            '<plural>': '<singular>',
+            '<formal>': '<informal>',
+            '<informal>': '<formal>',
             '': ''
         }
     def get_tag_list(self):
@@ -63,6 +63,8 @@ def set_seed(seed):
 
 
 def tensor2text(vocab, tensor, sp=None, ignore_tags=True):
+    base_vocab_len = 15945
+    # this is incorrect now lol
     tensor = tensor.cpu().numpy()
     text = []
     cxt = []
@@ -73,7 +75,7 @@ def tensor2text(vocab, tensor, sp=None, ignore_tags=True):
     pad_idx = vocab.stoi['<pad>']
     null_idx = vocab.stoi['<null>']
     gender_tags = False
-    if len(vocab) > 32004:
+    if len(vocab) > base_vocab_len:
         # Tags are being used
         gender_tags = True
     for sample in tensor:
@@ -83,7 +85,7 @@ def tensor2text(vocab, tensor, sp=None, ignore_tags=True):
         for idx in list(sample):
             if gender_tags \
                     and ignore_tags \
-                    and idx in list(range(32004, 32004 + 10)):
+                    and idx in list(range(base_vocab_len, base_vocab_len + 10)):
                 context_found.append(index2word[idx])
                 continue
             if idx == eos_idx:

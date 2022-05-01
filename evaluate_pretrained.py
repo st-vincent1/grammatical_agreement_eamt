@@ -7,7 +7,7 @@ import json
 from eval.evaluator import evaluate
 from src.data import load_test, read_vocab, build_context_vocab
 from src.models import Transformer
-from src.utils import load_params, set_seed, Coherence
+from src.utils import load_params, set_seed, Attributes
 
 
 def main():
@@ -41,7 +41,7 @@ def main():
     vocab = read_vocab(params.paths.vocab, device)
 
     # This is not needed but building it will save many exceptions in load_test
-    tag_list = Coherence().get_tag_list()
+    tag_list = Attributes().get_tag_list()
     cxt_vocab = build_context_vocab(tag_list)
 
     model = load_model(params, vocab, model_path, device)

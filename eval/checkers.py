@@ -1,11 +1,7 @@
 import re
 
 
-def no_adp(parsed, i, j):
-    for x in range(i, j):
-        if parsed[x].pos_ == 'ADP' and parsed[x].head == parsed[j]:
-            return False
-    return True
+
 
 
 def gender_check(token):
@@ -142,32 +138,35 @@ def check_form(sentence, en_sentence):
     return [], False
 
 
-def spgen_id(sentence, type_, stopwords):
-    pttn = 'f' if type_ == '<spgen_f>' else 'm'
-    for token in sentence:
-        token_feats = token._.feats.split(':')
-        head_feats = token.head._.feats.split(':')
-        if token.head.pos_ not in ['NOUN', 'VERB', 'ADJ']: continue
-        if 'sg' in token_feats and 'pri' in token_feats:
-            # Past tense and future tense verbs
-            if token.head.pos_ == 'VERB' and token.dep_ in ['aux:clitic', 'aux', 'aux:pass']:
-                if gender_check(token.head) == pttn:
-                    return True
-
-            # Nouns
-            if token.head.pos_ == 'NOUN' and 'inst' in head_feats:
-                if token.dep_ in ['aux:clitic', 'cop']:
-                    if no_adp(sentence, token.i, token.head.i):
-                        if token.head.lemma_.lower() not in stopwords:
-                            if gender_check(token.head) == pttn:
-                                return True
-
-            # Adjectives
-            if token.head.pos_ == 'ADJ':
-                if token.dep_ in ['aux:clitic', 'aux:pass', 'cop']:
-                    if gender_check(token.head) == pttn:
-                        return True
-    return False
+def spgen_id(sentence, predicted_type, stopwords):
+    # Search sentence for proof of a type. Return whether the discovered type matches the predicted one
+    actual_type = detector.check_speaker_gender(sentence)['SpGender']
+    return actual_type == predicted_type
+    # pttn = 'f' if predicted_type == '<spgen_f>' else 'm'
+    # for token in sentence:
+    #     token_feats = token._.feats.split(':')
+    #     head_feats = token.head._.feats.split(':')
+    #     if token.head.pos_ not in ['NOUN', 'VERB', 'ADJ']: continue
+    #     if 'sg' in token_feats and 'pri' in token_feats:
+    #         # Past tense and future tense verbs
+    #         if token.head.pos_ == 'VERB' and token.dep_ in ['aux:clitic', 'aux', 'aux:pass']:
+    #             if gender_check(token.head) == pttn:
+    #                 return True
+    #
+    #         # Nouns
+    #         if token.head.pos_ == 'NOUN' and 'inst' in head_feats:
+    #             if token.dep_ in ['aux:clitic', 'cop']:
+    #                 if no_adp(sentence, token.i, token.head.i):
+    #                     if token.head.lemma_.lower() not in stopwords:
+    #                         if gender_check(token.head) == pttn:
+    #                             return True
+    #
+    #         # Adjectives
+    #         if token.head.pos_ == 'ADJ':
+    #             if token.dep_ in ['aux:clitic', 'aux:pass', 'cop']:
+    #                 if gender_check(token.head) == pttn:
+    #                     return True
+    # return False
 
 
 def il_id(sentence, en_sentence, stopwords):

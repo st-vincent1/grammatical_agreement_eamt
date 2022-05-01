@@ -9,7 +9,7 @@ from eval.evaluator import evaluate
 from src.data import load_test, read_vocab, build_context_vocab, load_train_dev, add_tags_to_vocab
 from src.models import Transformer
 from src.trainer import validate_ft
-from src.utils import load_params, set_seed, Coherence
+from src.utils import load_params, set_seed, Attributes
 
 
 def main():
@@ -33,32 +33,28 @@ def main():
     model = Transformer(params, vocab)
     model.to(device)
 
-    if 'ckpt' in model_path:
-        checkpoint = torch.load(model_path, map_location=device)
-        model.load_state_dict(checkpoint['model_state_dict'])
-        del checkpoint
-    else:
-        # Adding null because it's necessary for tag_(enc_?)dec
-        tag_list = Coherence().get_tag_list() + ['<null>']
-        if 'tag' in params.config:
-            print("Resizing embedding layer & vocabulary to fit extra gender tokens. . .")
-            model.expand_embeddings(len(vocab) + len(tag_list), device)
-            if 'dec' in params.config:
-                # Need to expand pos_embeddings by 1 as well, to make space for <null>
-                model.max_length += 1
-                model.expand_pos_embeddings(model.max_length, device)
-            vocab = add_tags_to_vocab(vocab, tag_list)
-            model.gender_tags = [vocab.stoi[tag] for tag in tag_list]
+    # Adding null because it's necessary for tag_(enc_?)dec
+    tag_list = Attributes().get_tag_list() + ['<null>']
+    if 'tag' in params.config:
+        print("Resizing embedding layer & vocabulary to fit extra gender tokens. . .")
+        model.expand_embeddings(len(vocab) + len(tag_list), device)
+        if 'dec' in params.config:
+            # Need to expand pos_embeddings by 1 as well, to make space for <null>
+            model.max_length += 1
+            model.expand_pos_embeddings(model.max_length, device)
+        vocab = add_tags_to_vocab(vocab, tag_list)
+        model.gender_tags = [vocab.stoi[tag] for tag in tag_list]
 
-            # Experimental but should work
-            cxt_vocab = vocab
-        elif 'emb' in params.config:
-            cxt_vocab = build_context_vocab(tag_list)
-            model.add_coher_embedding(len(cxt_vocab), device)
-        elif params.config == 'out_bias':
-            cxt_vocab = build_context_vocab(tag_list)
-            model.decoder.generator.config = 'out_bias'
-            model.add_bias_embedding(len(cxt_vocab), device)
+        # Experimental but should work
+        cxt_vocab = vocab
+    elif 'emb' in params.config:
+        cxt_vocab = build_context_vocab(tag_list)
+        model.add_coher_embedding(len(cxt_vocab), device)
+    elif params.config == 'out_bias':
+        cxt_vocab = build_context_vocab(tag_list)
+        model.decoder.generator.config = 'out_bias'
+        model.add_bias_embedding(len(cxt_vocab), device)
+
     model.cxt_vocab = cxt_vocab
     model.load_state_dict(torch.load(model_path))
     model.config = params.config

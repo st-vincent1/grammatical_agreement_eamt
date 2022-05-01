@@ -4,16 +4,16 @@ import re
 import time
 
 import numpy as np
-import sacrebleu
 import sentencepiece as spm
 import torch
 from torch import nn
 from torch.cuda.amp import GradScaler
 from torch.cuda.amp import autocast
 from torch.nn.utils import clip_grad_norm_
+from sacrebleu.metrics import BLEU, CHRF
 from tqdm import tqdm
 
-from src.data import load_train_dev
+from src.data import load_finetuning_data
 from src.utils import tensor2text, tensor2cxt, get_lengths
 
 logging.basicConfig(level=logging.INFO)
@@ -27,19 +27,19 @@ def epoch_time(start_time, end_time):
 
 
 def pretrain(params, vocab, model, optimizer, train_iters, dev_iters, save_path, scaler) -> None:
+    iter_step = 0
     assert params.config == 'pretrain'
 
-    def pretrain_step():
+    def pretrain_epoch(iter_step):
         iter_n = params.pt.total_batch // params.pt.batch_size
         optimizer.zero_grad()
         model.train()
         accum_loss = 0
-        step = 0
         his_loss = []
         for i, batch in enumerate(train_iters):
             if (i + 1) % params.pt.eval_every == 0:
                 break
-            step += 1
+            iter_step += 1
             loss = step(params, model, scaler, batch)
             accum_loss += loss
             if (i + 1) % iter_n == 0:
@@ -48,34 +48,34 @@ def pretrain(params, vocab, model, optimizer, train_iters, dev_iters, save_path,
                 accum_loss /= iter_n
                 his_loss.append(accum_loss)
                 if (i + 1) % (iter_n * 100) == 0:
-                    log_str = f"Step [{step}]: loss {accum_loss:.2f}."
-                    logging.info(log_str)
+                    logging.info(f"Step [{iter_step}]: loss {accum_loss:.2f}.")
                 accum_loss = 0
         avrg_loss = np.mean(his_loss)
-        return avrg_loss, step
+        return avrg_loss, iter_step
 
     # Assume that save path for the model is load path with different epoch number
     patience = params.pt.patience
     best_path = re.sub(r'(\d+)\.pt', rf'best.pt', save_path)
     best_chrf = -1
-    for ep in range(params.pt.epochs + 1):
+    for ep in range(1, params.pt.max_epoch + 1):
         start_time = time.time()
-        train_loss, step_counter = pretrain_epoch()
-        dev_loss, bleu, chrf = validate(params, model, dev_iters, vocab)
+        train_loss, iter_step = pretrain_epoch(iter_step)
+        bleu, chrf = calculate_metrics(params, dev_iters, model, vocab)
         end_time = time.time()
         epoch_mins, epoch_secs = epoch_time(start_time, end_time)
         if chrf >= best_chrf:
             best_chrf = chrf
-            logging.info(f"New record for chrF: {best_chrf}. Saving model...")
-            torch.save(model.module.state_dict(), best_path)
+            logging.info(f"New record for chrF: {best_chrf:.2f}. Saving model...")
+            torch.save(model.state_dict(), best_path)
             patience = params.pt.patience
         else:
             patience -= 1
             logging.info(f'Model not saved. Remaining patience: {patience}')
             if patience == 0:
                 break
+        #    f'[Epoch: {ep}/{params.pt.max_epoch}] Time: {epoch_mins}m {epoch_secs}s | Val. loss: {dev_loss:.3f} | '
         logging.info(
-            f'[Epoch: {ep}/{params.pt.epochs}] Time: {epoch_mins}m {epoch_secs}s | Val. loss: {dev_loss:.3f} | '
+            f'[Epoch: {ep}/{params.pt.max_epoch}] Time: {epoch_mins}m {epoch_secs}s | '
             f'Train loss: {train_loss:.3f} | BLEU: {bleu:.3f} | chrF: {chrf:.3f}')
 
 
@@ -142,14 +142,14 @@ def preprocess(batch, eos_idx, config, evaluate=False):
     :return: tokens and lengths
     """
     # todo make this independent of cuda...
-    inp_tokens, out_tokens = batch.src.to(torch.device('cuda:0')), batch.trg.to(torch.device('cuda:0'))
+    inp_tokens, out_tokens = batch.en.to(torch.device('cuda:0')), batch.pl.to(torch.device('cuda:0'))
     if config != 'pretrain':
         cxt = batch.cxt.to(torch.device('cuda:0'))
         if evaluate:
             return inp_tokens, out_tokens, get_lengths(inp_tokens, eos_idx), cxt, batch.marking.to(
                 torch.device('cuda:0'))
         return inp_tokens, out_tokens, get_lengths(inp_tokens, eos_idx), cxt
-    return inp_tokens, out_tokens, get_lengths(inp_tokens, eos_idx)
+    return inp_tokens, out_tokens, get_lengths(inp_tokens, eos_idx), None
 
 
 def compute_loss(loss_fn, log_probs, out_tokens, token_mask, batch_size):
@@ -213,8 +213,12 @@ def translate_batch(params, batch, model, vocab, sp, device=torch.device('cuda')
 
 
 def calculate_metrics(params, data_iter, model, vocab, device=torch.device('cuda')):
+    chrf = CHRF(word_order=2)
+    bleu = BLEU()
     sp = spm.SentencePieceProcessor(model_file=params.spm)
+
     ref_text_acc, hyp_text_acc = [], []
+
     for batch in data_iter:
         _, ref_text, hyp_text = translate_batch(
             params, batch, model, vocab, sp, device)
@@ -230,10 +234,10 @@ def calculate_metrics(params, data_iter, model, vocab, device=torch.device('cuda
     # Removing instances where ref is empty or sacrebleu will be sad
     text = [(a, b) for (a, b) in zip(ref, hyp) if len(a) > 0]
     ref, hyp = zip(*text)
-    bleu = sacrebleu.corpus_bleu(hyp, [ref])
-    chrf = computeChrF(ref, hyp)
+    bleu_score = bleu.corpus_score(hyp, [ref]).score
+    chrf_score = chrf.corpus_score(hyp, [ref]).score
 
-    return bleu.score, chrf
+    return bleu_score, chrf_score
 
 
 def inference(model, data_iter, vocab, cxt_vocab, sp, device):
@@ -246,10 +250,8 @@ def inference(model, data_iter, vocab, cxt_vocab, sp, device):
     :param sp:
     :return:
     """
-    src = []
-    ref = []
-    raw = []
-    types_ = []
+    src, ref, raw, types_ = [], [], [], []
+
     for batch in tqdm(data_iter):
         inp_tokens, ref_tokens, inp_lengths, types = preprocess(batch, vocab.stoi['<eos>'], model.config)
         with torch.no_grad():
@@ -259,7 +261,7 @@ def inference(model, data_iter, vocab, cxt_vocab, sp, device):
                 inp_lengths,
                 types,
                 generate=True,
-                beam_size=1,
+                beam_size=5,
                 tag_dec=('dec' in model.config and 'tag' in model.config)
             )
         src += tensor2text(vocab, inp_tokens.cpu(), sp)
@@ -275,11 +277,13 @@ def inference(model, data_iter, vocab, cxt_vocab, sp, device):
 
 
 def validate_ft(params, vocab, cxt_vocab, model, dev_iters):
+    bleu = BLEU()
+    chrf = CHRF(word_order=2)
     sp = spm.SentencePieceProcessor(model_file=params.spm)
 
     src, ref, raw, types_ = inference(model, dev_iters, vocab, cxt_vocab, sp, device=params.ft.device)
-    bleu = sacrebleu.corpus_bleu(raw, [ref]).score
-    chrf = computeChrF(ref, raw)
+    bleu_score = bleu.corpus_score(raw, [ref]).score
+    chrf_score = chrf.corpus_score(raw, [ref]).score
     for _ in range(5):
         idx = np.random.randint(len(raw))
         print('*' * 40)
@@ -288,5 +292,5 @@ def validate_ft(params, vocab, cxt_vocab, model, dev_iters):
         print('[ref  ]', ref[idx])
         print('[types]', types_[idx])
         print('*' * 40)
-    print(f"Scores:\n   BLEU: {bleu:.3f}\n   chrF: {chrf:.3f}\n")
-    return bleu, chrf
+    print(f"Scores:\n   BLEU: {bleu_score:.3f}\n   chrF++: {chrf_score:.3f}\n")
+    return bleu_score, chrf_score

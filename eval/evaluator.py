@@ -6,54 +6,8 @@ import torch
 from tqdm import tqdm
 import numpy as np
 
-from eval.checkers import *
 from src.trainer import preprocess
-from src.utils import get_lengths, tensor2text, tensor2cxt, Coherence
-
-
-class Detector(object):
-    def __init__(self):
-        try:
-            nlp = spacy.load('pl_spacy_model_morfeusz_big')
-            self.nlp = nlp
-        except ValueError:
-            assert hasattr(self, 'nlp')
-            pass
-        with open('data/stopwords', 'r') as f:
-            stopwords = f.read().splitlines()
-        self.stopwords = stopwords
-
-    def calculate_type_agreement(self, sents, en_sents, type_):
-        coh = Coherence()
-        inv_type_ = [coh.reverse_map[x] for x in type_]
-        # A list of bools depending on whether ith sentence agreed to the ith type
-        correct = [self.id_(sents[i], en_sents[i], type_[i]) for i in tqdm(range(len(sents)))]
-        incorrect = [self.id_(sents[i], en_sents[i], inv_type_[i]) for i in tqdm(range(len(sents)))]
-        corr = {
-            x: np.sum(np.array(correct)
-                      & np.array([t_ in coh.types[x] for t_ in type_]))
-                      for x in coh.attribs
-        }
-        # for idx_ in range(len(incorrect)):
-        #     if incorrect[idx_]:
-        #         print(f"[{idx_}] || This is the hypothesis\n{sents[idx_]} || {en_sents[idx_]},\n should have been of type {type_[idx_]}, was of type {inv_type_[idx_]}\n")
-        incorr = {
-            x: np.sum(np.array(incorrect)
-                      & np.array([t_ in coh.types[x] for t_ in inv_type_]))
-            for x in coh.attribs
-        }
-        print(corr, incorr)
-        return corr, incorr
-
-    def id_(self, sentence, en_sentence, type_) -> bool:
-        # Checks whether sentence matches the given type
-        # returns true or false depending on whether type matched
-        if 'spgen' in type_:
-            x = spgen_id(self.nlp(sentence), type_, self.stopwords)
-            return x
-        else:
-            il_id_ = il_id(self.nlp(sentence), en_sentence, self.stopwords)
-            return type_ in il_id_
+from src.utils import get_lengths, tensor2text, tensor2cxt, Attributes
 
 
 def infer(model, data_iter, vocab, cxt_vocab, sp):
@@ -134,17 +88,17 @@ def evaluate(params, model, iters, vocab, cxt_vocab, device, baseline=False):
     hyps, refs, marks, cxts = {}, {}, {}, {}
     results = {}
     
-    coh = Coherence()
+    attrs = Attributes()
     detector = Detector()
 
-    attrib_counts = {x: [[], []] for x in coh.attribs}
+    attrib_counts = {x: [[], []] for x in attrs.attribute_list}
     if baseline:
         print("Getting scores for the pretrained model.")
         src, ref, hyp, marks, _ = infer(model, iters['raw'], vocab, cxt_vocab, sp, device)
 
         results['bleu'], results['chrf'] = compute_metrics(ref, hyp)
         agr_corr_raw, agr_incorr_raw = detector.calculate_type_agreement(hyp, src, marks)
-        for att in coh.attribs:
+        for att in attrs.attribute_list:
            results[f'agreement_{att}'] = agr_corr_raw[att] / (agr_corr_raw[att] + agr_incorr_raw[att]) * 100
         print(results)
         return results
@@ -155,10 +109,10 @@ def evaluate(params, model, iters, vocab, cxt_vocab, device, baseline=False):
     results['bleu_raw'], results['chrf_raw'] = compute_metrics(ref, hyps['raw'])
     src, ref, hyps['iso_raw'], marks['iso_raw'], cxts['iso_raw'] = infer(model, iters['iso_raw'], vocab, cxt_vocab, sp, device)
     for reff, hyp, mark in zip(ref, hyps['raw'], marks['raw']):
-        attrib = coh.type_to_attr(mark)
+        attrib = attrs.type_to_attr(mark)
         attrib_counts[attrib][0] += [reff]
         attrib_counts[attrib][1] += [hyp]
-    for attrib in coh.attribs:
+    for attrib in attrs.attribute_list:
         results[f'bleu_{attrib}'], results[f'chrf_{attrib}'] = compute_metrics(attrib_counts[attrib][0], attrib_counts[attrib][1])
         
     results['bleu_iso'], results['chrf_iso'] = compute_metrics(ref, hyps['iso_raw'])
@@ -173,7 +127,7 @@ def evaluate(params, model, iters, vocab, cxt_vocab, device, baseline=False):
     # Calculate agreement for full context & isolated hypotheses.
     for pref in ['', 'iso_']:
        agr_corr_raw, agr_incorr_raw = detector.calculate_type_agreement(hyps[f'{pref}raw'], src, marks[f'{pref}raw'])
-       for att in coh.attribs:
+       for att in attrs.attribute_list:
            results[f'{pref}agreement_{att}'] = agr_corr_raw[att] / (agr_corr_raw[att] + agr_incorr_raw[att]) * 100
 
     for key in results.keys():
