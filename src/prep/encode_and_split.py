@@ -47,5 +47,3 @@ if __name__ == '__main__':
     write_to_file(train, 'data/pretrain/en-pl.train.bpe')
     write_to_file(dev, 'data/pretrain/en-pl.dev.bpe')
     write_to_file(test, 'data/pretrain/en-pl.test.bpe')
-    # leftover_train, dev_, test_ = prepare_coherence_dev(test)
-    # os = save_leftovers(train, leftover_train, dev_, test_, 'os')

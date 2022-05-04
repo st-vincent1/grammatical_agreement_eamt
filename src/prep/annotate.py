@@ -55,6 +55,6 @@ if __name__ == '__main__':
     logging.info('--- Threshold reached. Annotating corpus...')
     if args.prefix is None:
         for split_set in ['dev', 'test']:
-            annotate_corpus(f'data/finetune/en-pl.{split_set}', detector)
+            annotate_corpus(f'data/raw/en-pl.{split_set}', detector)
     else:
         annotate_corpus(args.prefix, detector)

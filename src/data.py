@@ -1,7 +1,6 @@
 import copy
-import io
-from tqdm import tqdm
 import itertools
+import logging
 import pickle
 import re
 import random
@@ -9,13 +8,12 @@ import os
 
 import numpy as np
 import pandas as pd
-import sentencepiece as spm
 import torch
 from torchtext.data import Field, BucketIterator, TabularDataset
 from torchtext.vocab import build_vocab_from_iterator
-from src.utils import Attributes, CPU_Unpickler
-import sys
-from pprint import pprint
+from src.models import Attributes
+from src.utils import CPU_Unpickler
+
 
 
 def context_tokenize(x):
@@ -116,7 +114,6 @@ def build_context_vocab(term_list: iter, null=False):
     else:
         context_vocab.stoi.update({'<pad>': len(context_vocab.itos) - 1})
     assert [x == context_vocab.stoi[context_vocab.itos[x]] for x in range(len(context_vocab.itos))]
-
     return context_vocab
 
 
@@ -150,22 +147,24 @@ def add_tags_to_vocab(vocab, new_terms):
 
 
 def get_tags(row):
+    """ Get tags from cxt row, shuffle them, pad with nulls"""
     types = row['cxt'].split(',')
     tags = [t_ for t_ in types if t_]
     random.shuffle(tags)
-    finishing_tags = ['<null>'] + ['<null>' for t_ in types if t_ == '']
+    finishing_tags = ['<pad>' for t_ in types if t_ == ''] + ['<null>']
     return ' '.join(tags), ' '.join(tags + finishing_tags)
 
 
 def add_tags(df, tag_enc, tag_dec, splits):
     tags_enc = {x: [] for x in splits}
     tags_dec = {x: [] for x in splits}
-
+    logging.info("Adding tags...")
     for split in splits:
-        for idx, row in tqdm(df[split].iterrows()):
+        for idx, row in df[split].iterrows():
             tags_ = get_tags(row)
             tags_enc[split].append(tags_[0])
             if tag_dec: tags_dec[split].append(tags_[1])
+
     tags_enc = {x: pd.Series(tags_enc[x]) for x in tags_enc.keys()}
     tags_dec = {x: pd.Series(tags_dec[x]) for x in tags_dec.keys()}
 
@@ -195,7 +194,6 @@ def make_df(en, pl, cxt, split):
     df.replace('', np.nan)
     if split == 'train':
         unann_count = df.query("cxt != ',,,'").shape[0] // 4  # get 25% of size of annotated corpus
-        # unann_count = 0
         print(f'{unann_count = }')
         extra_unann = df.query("cxt == ',,,'").sample(frac=1)[:unann_count]  # grab unann_count sentences from unann
         df = pd.concat((df.query("cxt != ',,,'"), extra_unann), ignore_index=True)  # add them to the dataframe
@@ -208,7 +206,7 @@ def load_files_into_dfs(params, sets):
     elm = ['en', 'pl', 'cxt']
 
     for s, e in itertools.product(sets, elm):
-        filename = f'os.{s}.{e}'
+        filename = f'en-pl.{s}.bpe.{e}'
         filepath = os.path.join(root, filename)
         df = pd.read_csv(filepath, sep='\t', index_col=None, header=None, skip_blank_lines=False)
         dfs[f'{s}.{e}'] = df
@@ -244,7 +242,6 @@ def add_labels(dfs: dict, cxt_vocab, seed, alpha: float) -> dict:
         lambda x: drop_random_vals(x))
     dfs['train'].loc[empty_change, 'cxt'] = labels_alpha_amb(len(empty_change))
 
-    # Not sure this is needed todo
     dfs['train'] = dfs['train'].replace({'': np.nan})
     return dfs
 
@@ -253,25 +250,15 @@ def add_labels_test(dfs: dict) -> dict:
     attrs = Attributes()
 
     # Reset columns in marking; not np.nan because of join used later
-    dfs['iso_raw'][attrs.attribute_list] = ''
+    dfs['isolated'][attrs.attribute_list] = ''
 
     for att in attrs.attribute_list:
         for type_ in attrs.types[att]:
-            dfs['iso_raw'].loc[dfs['iso_raw']['marking'] == type_, att] = type_
+            dfs['isolated'].loc[dfs['isolated']['marking'] == type_, att] = type_
 
-        for prefix in ['', 'iso_']:
+        for setting in ['full', 'isolated']:
             # Gather context from attributes
-            dfs[f'{prefix}raw']['cxt'] = dfs[f'{prefix}raw'][attrs.attribute_list].agg(','.join, axis=1)
-            # Reverse contexts
-            # dfs[f'{prefix}rev'] = reverse_labels(dfs[f'{prefix}raw'])
-            # # Make marking reverse
-            # dfs[f'{prefix}rev']['marking'] = dfs[f'{prefix}raw']['marking'].apply(lambda x: attrs.reverse_map[x])
-            # dfs[f'{prefix}raw']['marking_reverse'] = dfs[f'{prefix}raw']['marking'].apply(lambda x: attrs.reverse_map[x])
-    # with open('data/qualitative/qualitative_contrastive.rev.context', 'w+') as f:
-    #     for line in dfs['rev']['cxt'].tolist():
-    #         f.write(re.sub('<|>', '', line) + '\n')
-    # # dfs['rev'] = add_random_labels(dfs['rev'])
-    # pprint(list(zip(dfs['raw']['cxt'], dfs['rev']['cxt'])))
+            dfs[setting]['cxt'] = dfs[setting][attrs.attribute_list].agg(','.join, axis=1)
 
     for set_ in dfs.keys():
         dfs[set_] = dfs[set_].replace({'': np.nan})
@@ -279,15 +266,15 @@ def add_labels_test(dfs: dict) -> dict:
     return dfs
 
 
-def dataset_fn(train, dev, root, fields):
+def dataset_fn(train, dev, root, fields, prefix='load'):
     count_words(train)
     count_words(dev)
-    train.to_csv(os.path.join(root, "train.csv"), index=False, header=None)
-    dev.to_csv(os.path.join(root, "dev.csv"), index=False, header=None)
+    train.to_csv(os.path.join(root, f"{prefix}_train.csv"), index=False, header=None)
+    dev.to_csv(os.path.join(root, f"{prefix}_dev.csv"), index=False, header=None)
     train, dev = TabularDataset.splits(
         path=root,
-        train='train.csv',
-        validation='dev.csv',
+        train=f'{prefix}_train.csv',
+        validation=f'{prefix}_dev.csv',
         format='csv',
         fields=fields)
     return train, dev
@@ -311,7 +298,7 @@ def load_finetuning_data(params, vocab, context_vocab):
 
     data_manager.context.vocab = context_vocab
 
-    train, dev = dataset_fn(labelled_dfs['train'], labelled_dfs['dev'], root, data_manager.fields)
+    train, dev = dataset_fn(labelled_dfs['train'], labelled_dfs['dev'], root, data_manager.fields, params.config)
     train_iters = data_manager.dataiter_fn(train, True)
     dev_iters = data_manager.dataiter_fn(dev, False)
 
@@ -322,14 +309,14 @@ def load_finetuning_data(params, vocab, context_vocab):
     print(f'Loaded vocab: {vocab.itos[9]=} | {vocab.itos[16]=} | {vocab.itos[225]=}')
 
     if 'tag' not in params.config:
-        print(f'Context vocab: {context_vocab}')
-
+        print(f'Context vocab: {context_vocab.itos}\n{context_vocab.stoi}')
+    
     return params, train_iters, dev_iters, vocab
 
 
 def add_random_labels(df, fill_marking=False):
     """
-    Adds 5 columns to df: ['spgen' ..] and 'cxt'. Attributes are random.
+    Adds 5 columns to df: ['SpGender'..] and 'cxt'. Attributes are random.
     :param df: dataframe of 2 columns: en, pl
     :return: same dataframe with 5 extra columns
     """
@@ -351,11 +338,6 @@ def add_random_labels(df, fill_marking=False):
 
 
 def reverse_labels(df):
-    """
-    Reverses labels for df. Assume for ilgen: !ilgen_x = ilgen_f, !ilgen_f = ilgen_m, !ilgen_m = ilgen_f
-    :param df:
-    :return:
-    """
     attrs = Attributes()
     df_ = copy.deepcopy(df)
     for att in attrs.attribute_list:
@@ -365,16 +347,9 @@ def reverse_labels(df):
 
 
 def load_test(params, vocab, context_vocab):
-    """Test data has an extra column, marking, showing which phenomenon is marked for.
-        This needs to be taken into account when adding tags.
-        So prepare three versions of the corpus:
-        - one with all true labels included: raw_labelled
-        - one with only the marking label included: marking_labelled
-        - one with labels reverse to raw_labelled: rev_labelled """
     data_manager = DataManager(params.ft.batch_size, torch.device(params.device))
     data_manager.context.vocab = context_vocab
     attrs = Attributes()
-    # root = params.paths.preprocessed
 
     root = params.ft.data
 
@@ -396,14 +371,14 @@ def load_test(params, vocab, context_vocab):
     data.replace('', np.nan)
 
     dfs = {
-        'raw': data,
-        'iso_raw': copy.deepcopy(data)
+        'full': data,
+        'isolated': copy.deepcopy(data)
     }
 
     """ Loading amb data. """
     amb = {}
     for suffix in ['en', 'pl']:
-        filename = f'en-pl.amb.{suffix}'
+        filename = f'en-pl.amb.bpe.{suffix}'
         filepath = os.path.join(root, filename)
         df = pd.read_csv(filepath, sep='\t', index_col=None, header=None, skip_blank_lines=False)
         amb[suffix] = df
@@ -416,7 +391,7 @@ def load_test(params, vocab, context_vocab):
     # Adds labels according to set.
     labelled = add_labels_test(dfs)
 
-    count_words(labelled['raw'])
+    count_words(labelled['full'])
 
     """Adding tags if required - should be done at the very end though, when phens are filled in everywhere."""
     if 'tag' in params.config:

@@ -4,10 +4,10 @@ from os import path
 import torch
 import json
 
-from eval.evaluator import evaluate
+from src.evaluator import evaluate
 from src.data import load_test, read_vocab, build_context_vocab
-from src.models import Transformer
-from src.utils import load_params, set_seed, Attributes
+from src.models import Transformer, Attributes
+from src.utils import load_params, set_seed
 
 
 def main():
@@ -29,11 +29,6 @@ def main():
         model = Transformer(params, vocab)
         model = model.to(device)
         model.config = params.config
-        # if 'ckpt' in state_dict:
-        #     checkpoint = torch.load(state_dict, map_location=device)
-        #     model.load_state_dict(checkpoint['model_state_dict'])
-        #     del checkpoint
-        # else:
         model.load_state_dict(torch.load(state_dict))
         model = model.eval()
         return model
@@ -41,7 +36,7 @@ def main():
     vocab = read_vocab(params.paths.vocab, device)
 
     # This is not needed but building it will save many exceptions in load_test
-    tag_list = Attributes().get_tag_list()
+    tag_list = Attributes().type_list
     cxt_vocab = build_context_vocab(tag_list)
 
     model = load_model(params, vocab, model_path, device)
@@ -49,7 +44,7 @@ def main():
     params, iters, vocab = load_test(params, vocab, cxt_vocab)
 
     print(f"Evaluating on {params.name_test}.")
-    results = evaluate(params, model, iters, vocab, cxt_vocab, device, baseline=True)
+    results = evaluate(params, model, iters, vocab, cxt_vocab, baseline=True)
     with open('out/baseline_results.json', 'w+') as f:
         json.dump(results, f, indent=4)
 

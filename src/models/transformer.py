@@ -80,38 +80,24 @@ class Transformer(nn.Module):
                             sos_token, batch_size, beam_size=1, tag_dec=False, target_types=None):
         # Beam search decoding
         bk_size = batch_size * beam_size
-        # attn = [torch.empty([batch_size, 8, 1, self.max_length]).to(device)] * 6
-        attn = [torch.empty([batch_size, 8, 1, max_enc_len]).to(device)] * 6
-        prev_states = None
 
         # First prediction step
-        log_prob, prev_states, attention = self.decoder.incremental_forward(
+        log_prob, prev_states = self.decoder.incremental_forward(
             sos_token, memory,
-            src_mask, trg_mask[:, :, 0:1, :1],
-            prev_states
+            src_mask, trg_mask[:, :, 0:1, :1]
         )
-        # First attention
-        # for i in range(len(attn)):
-        # pad_attn = torch.zeros([batch_size, 8, 1, self.max_length]).to(device)
-        # attn[i] = torch.cat((attn[i], pad_attn), 2)
-        #    attn[i] = torch.cat((attn[i], attention[i]), 2)
 
         # This is going to be <sos>
         first_token = self.embed(log_prob.argmax(-1), pos_idx[:, :1])
         hypotheses = log_prob.argmax(-1).to(device)
         # Generating from <sos>
-        second_token_log_prob, prev_states, attention = self.decoder.incremental_forward(
+        second_token_log_prob, prev_states = self.decoder.incremental_forward(
             first_token, memory,
             src_mask, trg_mask[:, :, 1:2, :2],
             prev_states
         )
 
-        # for i in range(len(attention)):
-        #     pad_attn = torch.zeros([batch_size, 8, 1, self.max_length]).to(device)
-        #     pad_attn[:, :, :, :2] = attention[i]
-        #     attn[i] = torch.cat((attn[i], pad_attn), 2)
-
-        # Pick best k from the first prediction, 32x1x4
+        # Pick best k from the first prediction.
         top_prob, top_idx = second_token_log_prob.topk(beam_size, sorted=True)
 
         # Copy prev_states across k beams
@@ -133,7 +119,7 @@ class Transformer(nn.Module):
             src_mask = src_mask.view(bk_size, 1, 1, max_enc_len + 1)
         else:
             src_mask = src_mask.view(bk_size, 1, 1, max_enc_len)
-        attn = [attn_.repeat((beam_size, 1, 1, 1)) for attn_ in attn]
+
         # Make next token & initialise a buffer for previous tokens
         if tag_dec and target_types is not None:
             target_types = target_types.transpose(1, 0)
@@ -148,8 +134,9 @@ class Transformer(nn.Module):
         k_ = 2
         if tag_dec and target_types is not None:
             target_types = target_types.repeat((1, beam_size))
-            for type_ in target_types[1:, :]:
-                log_prob, prev_states, attention = self.decoder.incremental_forward(
+            # Set to -1 so that we do not predict null; let the model predict it on its own
+            for type_ in target_types[1:-1, :]:
+                log_prob, prev_states = self.decoder.incremental_forward(
                     next_token, memory,
                     src_mask, trg_mask[:, :, k_:k_ + 1, :k_ + 1],
                     prev_states
@@ -158,7 +145,6 @@ class Transformer(nn.Module):
                 accum_log_prob += log_prob[range(type_.shape[0]), :, type_]
                 next_token = self.embed(type_.unsqueeze(-1), pos_idx[:, 1:2])
                 k_ += 1
-
         padding_len = self.max_length
         # safe deposit boxes for ended sequences
         safe_hypotheses = [[] for _ in range(batch_size)]
@@ -166,17 +152,12 @@ class Transformer(nn.Module):
         top_hypotheses = ['' for _ in range(batch_size)]
         for k in range(k_, self.max_length):
             # Generate the log probs of the next token
-            log_prob, prev_states, attention = self.decoder.incremental_forward(
+            log_prob, prev_states = self.decoder.incremental_forward(
                 next_token, memory,
                 src_mask, trg_mask[:, :, k:k + 1, :k + 1],
                 prev_states
             )
-            # Block type generation from now on
-            # for i in range(len(attn)):
-            # pad_attn = torch.zeros([bk_size, 8, 1, self.max_length]).to(device)
-            # pad_attn[:, :, :, :k + 1] = attention[i]
-            # attn[i] = torch.cat((attn[i], pad_attn),2)
-            #    attn[i] = torch.cat((attn[i], attention[i]),2)
+
             t = k
             # hyp_log_prob [128, 1, 32004] contains hypothesis probabilities
             # Probs of hypotheses = probs accumulated so far + probs for next token. Don't add if hypothesis is finished
@@ -206,6 +187,7 @@ class Transformer(nn.Module):
             original_pos = (
                     torch.Tensor(range(batch_size)).repeat(beam_size).to(device) + original_pos * batch_size).to(
                 torch.int64)
+
             # Reorder previous hypotheses:
             # 1. Update hypotheses
             hypotheses = hypotheses[original_pos, :]
@@ -214,15 +196,14 @@ class Transformer(nn.Module):
                 for s in range(len(prev_states[l])):
                     prev_states[l][s] = prev_states[l][s][original_pos, :, :]
             prev_states[-1] = prev_states[-1][original_pos, :, :]
-            # for i in range(len(attn)):
-            #    attn[i] = attn[i][original_pos, :, :, :]
+
             # If we're at the end then add all hypotheses from beam 1
             if k + 1 == self.max_length:
                 for i in range(batch_size):
                     safe_hypotheses[i].append(
                         self.pad_hyps(hypotheses[i], padding_len))
                     safe_hypotheses_log_probs[i].append(best_hyp_probs[i] / t)
-            # if we're not at the end yet, then just those that reaches EOS
+            # if we're not at the end yet, then just those that reached EOS
             else:
                 done_mask = next_tokens.squeeze() == self.eos_idx
                 ended = done_mask.nonzero(as_tuple=False)
@@ -250,17 +231,13 @@ class Transformer(nn.Module):
         for i in range(len(safe_hypotheses)):
             top_hypotheses[i] = safe_hypotheses[i][top_vals[i]]
         top_hypotheses = torch.stack(top_hypotheses).to(device)
-        return top_hypotheses, attn
+        return top_hypotheses
 
     def forward(self, inp_tokens, gold_tokens, inp_lengths, types, generate=False, beam_size=1, tag_dec=False):
-        try:
-            assert torch.equal(self.decoder.generator.proj.weight.data, self.embed.token_embed.weight.data)
-        except AssertionError:
-            print("Tied weights are different.")
-            pass
-
+        assert torch.equal(self.decoder.generator.proj.weight.data, self.embed.token_embed.weight.data), "Tied weights are different."
         batch_size = inp_tokens.size(0)
         max_enc_len = inp_tokens.size(1)
+
         assert max_enc_len <= self.max_length
 
         pos_idx = torch.arange(self.max_length).unsqueeze(0).expand((batch_size, -1))
@@ -305,15 +282,15 @@ class Transformer(nn.Module):
         else:
             sos_token = self.sos_token.view(1, 1, -1).expand(batch_size, -1, -1)
         if not generate:
-            dec_input = gold_tokens[:, :-1]
             max_dec_len = gold_tokens.size(1)
+            dec_input = gold_tokens[:, :-1]
             dec_input_emb = torch.cat((sos_token, self.embed(dec_input, pos_idx[:, :max_dec_len - 1])), 1)
 
-            log_probs, attention = self.decoder(
+            log_probs = self.decoder(
                 dec_input_emb, enc_output,
                 src_mask, trg_mask[:, :, :max_dec_len, :max_dec_len],
             )
-            return log_probs, attention
+            return log_probs
 
         elif generate:
             return self.beam_search_decoder(pos_idx, inp_lengths, max_enc_len, src_mask, trg_mask, enc_output,
@@ -334,7 +311,7 @@ class Encoder(nn.Module):
         assert y.size(1) == mask.size(-1)
 
         for layer in self.layers:
-            y, _ = layer(y, mask)
+            y = layer(y, mask)
         return self.norm(y)
 
 
@@ -349,30 +326,26 @@ class Decoder(nn.Module):
     def forward(self, x, memory, src_mask, trg_mask):
         y = x
         assert y.size(1) == trg_mask.size(-1)
-        attention = []
         for layer in self.layers:
-            y, attention_ = layer(y, memory, src_mask, trg_mask)
-            attention.append(attention_)
-        return self.generator(self.norm(y)), attention
+            y = layer(y, memory, src_mask, trg_mask)
+        return self.generator(self.norm(y))
 
     def incremental_forward(self, x, memory, src_mask, trg_mask, prev_states=None):
         y = x
 
         new_states = []
-        attention = []
         for i, layer in enumerate(self.layers):
-            y, new_sub_states, attention_ = layer.incremental_forward(
+            y, new_sub_states = layer.incremental_forward(
                 y, memory, src_mask, trg_mask,
                 prev_states[i] if prev_states else None
             )
-            attention.append(attention_)
             new_states.append(new_sub_states)
 
         new_states.append(
             torch.cat((prev_states[-1], y), 1) if prev_states else y)
         y = self.norm(new_states[-1])[:, -1:]
 
-        return self.generator(y), new_states, attention
+        return self.generator(y), new_states
 
 
 class Generator(nn.Module):
@@ -414,7 +387,7 @@ class EncoderLayer(nn.Module):
             [SublayerConnection(d_model, dropout) for _ in range(2)])
 
     def forward(self, x, mask):
-        x, _ = self.sublayer[0](x, lambda x: self.self_attn(x, x, x, mask))
+        x = self.sublayer[0](x, lambda x: self.self_attn(x, x, x, mask))
         return self.sublayer[1](x, self.pw_ffn)
 
 
@@ -429,26 +402,26 @@ class DecoderLayer(nn.Module):
 
     def forward(self, x, memory, src_mask, trg_mask):
         m = memory
-        x, self_attn = self.sublayer[0](x, lambda x: self.self_attn(x, x, x, trg_mask))
-        x, src_attn = self.sublayer[1](x, lambda x: self.src_attn(x, m, m, src_mask))
-        out, _ = self.sublayer[2](x, self.pw_ffn)
-        return out, src_attn
+        x = self.sublayer[0](x, lambda x: self.self_attn(x, x, x, trg_mask))
+        x = self.sublayer[1](x, lambda x: self.src_attn(x, m, m, src_mask))
+        return self.sublayer[2](x, self.pw_ffn)
 
     def incremental_forward(self, x, memory, src_mask, trg_mask, prev_states=None):
         new_states = []
         m = memory
         x = torch.cat((prev_states[0], x), 1) if prev_states else x
         new_states.append(x)
-
-        x, self_attn = self.sublayer[0].incremental_forward(x, lambda x: self.self_attn(x[:, -1:], x, x, trg_mask))
+        x = self.sublayer[0].incremental_forward(
+            x, lambda x: self.self_attn(x[:, -1:], x, x, trg_mask))
         x = torch.cat((prev_states[1], x), 1) if prev_states else x
         new_states.append(x)
-        x, src_attn = self.sublayer[1].incremental_forward(x, lambda x: self.src_attn(x[:, -1:], m, m, src_mask))
+        x = self.sublayer[1].incremental_forward(
+            x, lambda x: self.src_attn(x[:, -1:], m, m, src_mask))
         x = torch.cat((prev_states[2], x), 1) if prev_states else x
         new_states.append(x)
-        x, _ = self.sublayer[2].incremental_forward(x, lambda x: self.pw_ffn(x[:, -1:]))
-        return x, new_states, src_attn
-
+        x = self.sublayer[2].incremental_forward(
+            x, lambda x: self.pw_ffn(x[:, -1:]))
+        return x, new_states
 
 class MultiHeadAttention(nn.Module):
     def __init__(self, d_model, h, dropout):
@@ -466,10 +439,10 @@ class MultiHeadAttention(nn.Module):
         query, key, value = [l(x).view(batch_size, -1, self.h, self.d_k).transpose(1, 2)
                              for x, l in zip((query, key, value), self.head_projs)]
 
-        attn_feature, attn_weight = scaled_attention(query, key, value, mask)
+        attn_feature, _ = scaled_attention(query, key, value, mask)
         attn_concated = attn_feature.transpose(1, 2).contiguous().view(batch_size, -1, self.h * self.d_k)
 
-        return self.fc(attn_concated), attn_weight
+        return self.fc(attn_concated)
 
 
 def scaled_attention(query, key, value, mask):
@@ -492,7 +465,7 @@ class PositionwiseFeedForward(nn.Module):
         )
 
     def forward(self, x):
-        return self.mlp(x), None
+        return self.mlp(x)
 
 
 class SublayerConnection(nn.Module):
@@ -502,12 +475,12 @@ class SublayerConnection(nn.Module):
         self.dropout = nn.Dropout(dropout)
 
     def forward(self, x, sublayer):
-        y, attn = sublayer(self.layer_norm(x))
-        return x + self.dropout(y), attn
+        y = sublayer(self.layer_norm(x))
+        return x + self.dropout(y)
 
     def incremental_forward(self, x, sublayer):
-        y, attn = sublayer(self.layer_norm(x))
-        return x[:, -1:] + self.dropout(y), attn
+        y = sublayer(self.layer_norm(x))
+        return x[:, -1:] + self.dropout(y)
 
 
 def Linear(in_features, out_features, bias=True, uniform=True):

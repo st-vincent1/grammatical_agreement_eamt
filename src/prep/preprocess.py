@@ -1,11 +1,9 @@
-from typing import List, Tuple, Union, Dict
+from typing import List, Dict
 import re
 from argparse import ArgumentParser
 from mosestokenizer import MosesDetokenizer, MosesPunctuationNormalizer
 from tqdm import tqdm
-from pprint import pprint
 from dataclasses import dataclass
-from utils import bert_nsp_formatter
 import cld3
 
 REMOVE_TOKEN = "@Remove@"
@@ -126,13 +124,6 @@ def bitext_parse(prefix: str, tgt_lang: str) -> None:
 
 
 if __name__ == '__main__':
-    """ This script can either preprocess a monolingual dataset (documents of sentence per line, separated by newline)
-        or a bitext (two paired documents). args.prefix denotes the prefix of the parsed file (e.g. for monolingual file
-        "file.ru" you'd provide "--prefix file --language ru. For bitext parsing the assumption is that en is the source
-        language always. 
-        
-        Except for bits copied from R. Bawden's script, everything here is language-independent 
-        (though might work better on Latin-alphabet languages etc.)"""
     parser = ArgumentParser()
     parser.add_argument('-p', '--prefix', required=True,
                         help='Prefix of files (paths relative to master directory) to parse.')

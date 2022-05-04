@@ -5,6 +5,7 @@ from typing import Dict
 from tqdm import tqdm
 import numpy as np
 
+logging.basicConfig(level=logging.INFO)
 
 class Attributes:
     def __init__(self):
@@ -29,11 +30,8 @@ class Attributes:
             '': ''
         }
 
-    def get_tag_list(self):
-        return [a for b in self.types.values() for a in b]
-
     def identify_from_type(self, attr_type):
-        for attr, types in self.types.keys():
+        for attr, types in self.types.items():
             if attr_type in types:
                 return attr
         logging.error(f"Tried to identify a type which does not exist: {attr_type}")
@@ -62,8 +60,8 @@ class Detector:
             parsed = self.nlp(sentence)
         except KeyboardInterrupt:
             raise
-        except:
-            print("Parser threw an error.")
+        except Exception as e:
+            logging.info(e)
             return ""
         return parsed
 
@@ -86,7 +84,7 @@ class Detector:
                       & np.array([t_ in self.attribs.types[x] for t_ in rev_type]))
             for x in self.attribs.attribute_list
         }
-        print(corr, incorr)
+        logging.info(f"Correct assignments:   {corr}\nIncorrect assignments: {incorr}")
         return corr, incorr
 
     def verify_context(self, sentence: str, en_sentence: str, predicted_type: str) -> bool:
@@ -98,8 +96,6 @@ class Detector:
         :param predicted_type: type predicted by the model.
         :return: True if type matches actual type, else False.
         """
-        print(predicted_type)
-        sentence = self.parse_sentence(sentence)
         attr = self.attribs.identify_from_type(predicted_type)
         return self.predict_types(sent_pair={'pl': sentence, 'en': en_sentence})[attr] == predicted_type
 

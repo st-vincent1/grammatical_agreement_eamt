@@ -114,9 +114,8 @@ def write_to_file_extractor(filename, subs, indices):
 
 def preprocess(df):
     # Remove empty sentences
-    nan_value = float("NaN")
-    df.replace("", nan_value, inplace=True)
-    df.dropna(subset=['en', 'pl'], inplace=True)
+    df.replace("", float("NaN"), inplace=True)
+    df.dropna(inplace=True)
 
     # Randomise row order
     df = df.sample(frac=1)
@@ -124,7 +123,7 @@ def preprocess(df):
     df['en_len'] = df['en'].str.count(' ').astype('int64')
     df['pl_len'] = df['pl'].str.count(' ').astype('int64')
     df = df.query('en_len < 100 & pl_len < 100')
-    return df[['en', 'pl']]
+    return df
 
 
 def make_df(in_en, in_pl):
@@ -133,41 +132,6 @@ def make_df(in_en, in_pl):
     df = pd.concat([en, pl], axis=1, join='outer', ignore_index=True)
     df.columns = ['en', 'pl']
     return df
-
-# def save_leftovers(train, leftover_train, dev, test, prefix):
-#     train.append(leftover_train)
-#     train[SETS] = train['cxt'].str.split(',', expand=True)
-#     print(f'{train.shape=}')
-#     print(train)
-#     # Getting rid of some of the more popular scenarios because we don't need that many examples!
-#     train['ilnum_s_and_form_i'] = (train['ilnum'] == 'ilnum_s') & (train['form'] == 'form_i') & \
-#                                   (train['spgen'] == '') & (train['ilgen'] == '')
-#
-#     print(f"{train[train['ilnum'] == 'ilnum_s'].shape=}")
-#     print(f"{train[train['form'] == 'form_i'].shape=}")
-#     print(f"{train[(train['form'] == 'form_i') & (train['ilnum'] == 'ilnum_s')].shape=}")
-#
-#     # Removing all but 5% of ilnum_s and form_i
-#     train_ = train[train['ilnum_s_and_form_i']].sample(frac=0.05)
-#     train = pd.concat((train[train['ilnum_s_and_form_i'] == False], train_))
-#     print(f'{train.shape = }')
-#     print(f"{train[train['ilnum'] != ''].shape=}")
-#     print(f"{train[train['form'] != ''].shape=}")
-#     print(f"{train[train['spgen'] != ''].shape=}")
-#     print(f"{train[train['ilgen'] != ''].shape=}")
-#
-#     dfs = {f'{prefix}.train.en': train['en'],
-#            f'{prefix}.train.pl': train['pl'],
-#            f'{prefix}.train.cxt': train['cxt'],
-#            f'{prefix}.dev.en': dev['en'],
-#            f'{prefix}.dev.pl': dev['pl'],
-#            f'{prefix}.dev.cxt': dev['cxt'],
-#            f'{prefix}.dev.marking': dev['marking'],
-#            f'{prefix}.test.en': test['en'],
-#            f'{prefix}.test.pl': test['pl'],
-#            f'{prefix}.test.cxt': test['cxt'],
-#            f'{prefix}.test.marking': test['marking']}
-#     return dfs
 
 
 def train_spm(sentence_list: List[str]) -> None:
