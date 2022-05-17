@@ -114,6 +114,7 @@ def train(params, vocab, model, train_iters, dev_iters, optimizer, cxt_vocab=Non
             his_loss = []
         if k % params.ft.eval_steps == 0:
             model.eval()
+            torch.save(model.state_dict(), re.sub('.pt', f'_{k}.pt', save_path))
             _, chrf = validate(params, vocab, cxt_vocab, model, dev_iters)
             if chrf > best_chrf:
                 logging.info(f"Saving new model.")
@@ -124,7 +125,8 @@ def train(params, vocab, model, train_iters, dev_iters, optimizer, cxt_vocab=Non
             eval_mins, eval_secs = epoch_time(start_time, end_time)
             logging.info(f'   [Evaluation]: ({eval_mins}m {eval_secs}s)')
             start_time = time.time() 
-
+    # Saving last model for inspection
+    torch.save(model.state_dict(), re.sub('.pt', '_last.pt', save_path))
 
 def compute_loss(loss_fn, log_probs, out_tokens, token_mask, batch_size):
     loss = loss_fn(log_probs.transpose(1, 2), out_tokens) * token_mask
@@ -138,7 +140,7 @@ def step(params, model, scaler, batch):
 
     loss_fn = nn.NLLLoss(reduction='none')
 
-    inp_tokens, out_tokens, inp_lengths, types = preprocess(batch, eos_idx, params.config)
+    inp_tokens, out_tokens, inp_lengths, types, _ = preprocess(batch, eos_idx, params.config)
     batch_size = inp_tokens.size(0)
     token_mask = (out_tokens != pad_idx).float()
     with autocast():

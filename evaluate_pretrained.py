@@ -15,7 +15,7 @@ def main():
     parser = ArgumentParser()
 
     # Model paths
-    parser.add_argument('--model_path', default='pretrain_best.pt')
+    parser.add_argument('--model_path', default='pretrained_best.pt')
 
     args = parser.parse_args()
     set_seed(1)
@@ -43,7 +43,6 @@ def main():
 
     params, iters, vocab = load_test(params, vocab, cxt_vocab)
 
-    print(f"Evaluating on {params.name_test}.")
     results = evaluate(params, model, iters, vocab, cxt_vocab, baseline=True)
     with open('out/baseline_results.json', 'w+') as f:
         json.dump(results, f, indent=4)

@@ -5,6 +5,9 @@ from src.utils import inference
 from src.models import Detector, Attributes
 import logging
 
+import pandas as pd
+import re
+
 logging.basicConfig(level=logging.INFO)
 
 
@@ -22,59 +25,60 @@ def evaluate(params, model, iters, vocab, cxt_vocab, baseline=False):
         return bleu_raw, chrf_raw
 
     sp = spm.SentencePieceProcessor(model_file=params.spm)
-    hyps, refs, marks, cxts = {}, {}, {}, {}
+    srcs, hyps, refs, marks, cxts = {}, {}, {}, {}, {}
     results = {}
-
-    attrs = Attributes()
+    def generate_chrf_for_groups(df):
+        chrf = CHRF(word_order=2)
+        if 'dec' in params.config: 
+            df.cxts = df.cxts.apply(attribs.sort_group)
+        for group in attribs.groups.keys():
+            group = re.sub(r',|\.|\*|\[|\]|\^', ' ', group).strip()
+            pattern = fr"^{group}$"
+            if 'sp' not in group:
+                pattern = rf'^(<sp:feminine> |<sp:masculine> |){pattern[1:]}'
+            else:
+                pattern = rf'{pattern[:-1]}.*$'
+            group_hypotheses = df[df.cxts.str.contains(pattern)]
+            results[f'chrF++:{group}'] = chrf.corpus_score(group_hypotheses['hyps'].tolist(),
+                                                           [group_hypotheses['refs'].tolist()]).score
+    attribs = Attributes()
     detector = Detector()
 
-    attrib_counts = {x: [[], []] for x in attrs.attribute_list}
-    if baseline:
-        logging.info("Getting scores for the pretrained model.")
-        src, ref, hyp, _, marks = inference(model, iters['full'], vocab, cxt_vocab, sp, evaluate=True)
+    attrib_counts = {x: [[], []] for x in attribs.attribute_list}
 
-        results['BLEU'], results['chrF'] = compute_metrics(ref, hyp)
-        agr_corr_hyp, agr_incorr_hyp = detector.calculate_type_agreement(hyp, src, marks)
-        for att in attrs.attribute_list:
-            results[f'Agreement to {att}'] = agr_corr_hyp[att] / (agr_corr_hyp[att] + agr_incorr_hyp[att]) * 100
-        logging.info(results)
-        return results
+    for setting in ['isolated', 'full']:
+        logging.info(f"Generating scores for {setting}.")
+        srcs[setting], refs[setting], hyps[setting], cxts[setting], marks[setting] = inference(model, iters[setting],
+                                                                                               vocab, cxt_vocab, sp,
+                                                                                               evaluate=True)
+        results[f'BLEU:{setting}'], results[f'chrF++:{setting}'] = compute_metrics(refs[setting], hyps[setting])
 
-    # print("Generating hypotheses for full and isolated contexts.")
-    src, ref, hyps['full'], cxts['full'], marks['full'] = inference(model, iters['full'], vocab, cxt_vocab, sp, evaluate=True)
-
-    results['BLEU:full'], results['chrF:full'] = compute_metrics(ref, hyps['full'])
-    src, ref, hyps['isolated'], cxts['isolated'], marks['isolated'] = inference(model, iters['isolated'], vocab, cxt_vocab, sp, evaluate=True)
-
-    for reff, hyp, mark, cxt in zip(ref, hyps['full'], marks['full'], cxts['full']):
-        # if '<sp' in mark:
-        #     logging.info(f"Reference: {reff}\nHypothesis: {hyp}\nMarking:{mark}\nContext: {cxt}")
-        attrib = attrs.identify_from_type(mark)
-        attrib_counts[attrib][0] += [reff]
-        attrib_counts[attrib][1] += [hyp]
-    for attrib in attrs.attribute_list:
-        results[f'bleu_{attrib}'], results[f'chrf_{attrib}'] = compute_metrics(attrib_counts[attrib][0],
-                                                                               attrib_counts[attrib][1])
-
-    results['BLEU:isolated'], results['chrF:isolated'] = compute_metrics(ref, hyps['isolated'])
-    logging.info("Generating ambivalent hyps for AmbID.")
-    _, amb_ref, hyps['amb_hyp'], _, _ = inference(model, iters['amb'], vocab, cxt_vocab, sp, evaluate=True)
-    _, _, hyps['amb_rev'], _, _ = inference(model, iters['amb_rev'], vocab, cxt_vocab, sp, evaluate=True)
-    # Removing the one empty instance - but doing it right
-    hyps['amb_hyp'], hyps['amb_rev'] = zip(*[(a, b) for (a, b) in zip(hyps['amb_hyp'], hyps['amb_rev']) if a and b])
-    results['AmbID'] = compute_metrics(hyps['amb_hyp'], hyps['amb_rev'])[1]
-
-    # Calculate agreement for full context & isolated hypotheses.
-    for setting in ['full', 'isolated']:
+        for reference, hypothesis, marking, context in zip(refs[setting], hyps[setting], marks[setting], cxts[setting]):
+            attrib = attribs.identify_from_type(marking)
+            attrib_counts[attrib][0] += [reference]
+            attrib_counts[attrib][1] += [hypothesis]
+        for attrib in attribs.attribute_list:
+            results[f'{attrib}:BLEU:{setting}'], results[f'{attrib}:chrf++:{setting}'] = compute_metrics(
+                attrib_counts[attrib][0], attrib_counts[attrib][1])
         logging.info(f"Inspecting {setting}")
-        agr_corr_hyp, agr_incorr_hyp = detector.calculate_type_agreement(hyps[setting], src, marks[setting])
-        for att in attrs.attribute_list:
+        agr_corr_hyp, agr_incorr_hyp = detector.calculate_type_agreement(hyps[setting], srcs[setting], marks[setting])
+        for att in attribs.attribute_list:
             results[setting] = agr_corr_hyp[att] / (agr_corr_hyp[att] + agr_incorr_hyp[att]) * 100
+    if not baseline:
+        logging.info("Generating ambivalent hyps for AmbID.")
+        _, refs['amb'], hyps['amb'], _, _ = inference(model, iters['amb'], vocab, cxt_vocab, sp, evaluate=True)
+        _, _, hyps['amb_rev'], _, _ = inference(model, iters['amb_rev'], vocab, cxt_vocab, sp, evaluate=True)
+        # Removing the one empty instance - but doing it right
+        hyps['amb'], hyps['amb_rev'] = zip(*[(a, b) for (a, b) in zip(hyps['amb'], hyps['amb_rev']) if a and b])
+        results['AmbID'] = compute_metrics(hyps['amb'], hyps['amb_rev'])[1]
 
-    for key in results.keys():
-        results[key] = [results[key]]
+    # For plotting purposes, calculate chrF++ scores for each group# for key in results.keys():
+    df = pd.DataFrame({'hyps': hyps['full'], 'refs': refs['full'], 'cxts': cxts['full']})
+    
+    generate_chrf_for_groups(df)
+
     logging.info(results)
-    return results
+    return results, refs, hyps
 
 
 def evaluate_baseline(params, base_model, test_iters, vocab):

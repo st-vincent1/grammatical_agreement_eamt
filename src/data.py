@@ -213,14 +213,13 @@ def load_files_into_dfs(params, sets):
     return {f'{s}': make_df(dfs[f'{s}.en'], dfs[f'{s}.pl'], dfs[f'{s}.cxt'], s) for s in sets}
 
 
-def add_labels(dfs: dict, cxt_vocab, seed, alpha: float) -> dict:
+def add_labels(dfs: dict, seed, alpha: float) -> dict:
     attrs = Attributes()
     # Change seed to make sure re-labelling is different, but still dependent on the original seed so it is reproducible
     np.random.seed(seed)
 
     # For alpha amb, we pick a subset of random attributes
     def labels_alpha_amb(length):
-        # todo print what this does
         contexts = list(zip(
             *(list(np.random.choice(types + [''] * len(types), length))
               for types in attrs.types.values())))
@@ -287,7 +286,7 @@ def load_finetuning_data(params, vocab, context_vocab):
 
     loaded_dfs = load_files_into_dfs(params, ['train', 'dev'])
 
-    labelled_dfs = add_labels(loaded_dfs, context_vocab, params.seed, params.alpha)
+    labelled_dfs = add_labels(loaded_dfs, params.seed, params.alpha)
 
     # Add tags to source/target sentences if config requires it
     if 'tag' in params.config:

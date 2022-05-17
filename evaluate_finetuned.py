@@ -13,15 +13,18 @@ import logging
 
 logging.basicConfig(level=logging.INFO)
 
+
 def main():
     params = load_params()
     parser = ArgumentParser()
 
     # Model paths
     parser.add_argument('--config', required=True)
+    parser.add_argument('--print_hypotheses', default=False)
+    parser.add_argument('--print_references', default=False)
     args = parser.parse_args()
     set_seed(1)
-    
+
     logging.info(f"Evaluating {args.config}")
     params.config = args.config
 
@@ -47,6 +50,7 @@ def main():
 
     elif 'emb' in params.config:
         cxt_vocab = build_context_vocab(tag_list)
+        print(cxt_vocab.itos, cxt_vocab.stoi)
         model.add_coher_embedding(len(cxt_vocab), device)
     elif params.config == 'out_bias':
         cxt_vocab = build_context_vocab(tag_list)
@@ -60,18 +64,22 @@ def main():
     print(f"{model.decoder.generator.config=}")
 
     params, iters, vocab = load_test(params, vocab, cxt_vocab)
-    results = evaluate(params, model, iters, vocab, cxt_vocab)
+    results, references, hypotheses = evaluate(params, model, iters, vocab, cxt_vocab)
 
-    try:
-        with open(f'out/{model.config}_results.json') as json_file:
-            data = json.load(json_file)
-        for key in data.keys():
-            data[key] = data[key] + results[key]
-    except FileNotFoundError:
-        data = results
+    for key in references.keys():
+        if args.print_references:
+            with open(f"{args.print_references}.{key}", 'w+') as f:
+                for line in references[key]:
+                    f.write(line + "\n")
 
-    with open(f'out/{model.config}_results.json', 'w+') as f:
-        json.dump(data, f, indent=4)
+        if args.print_hypotheses:
+            with open(f"{args.print_hypotheses}.{key}", 'w+') as f:
+                for line in hypotheses[key]:
+                    f.write(line + "\n")
+
+    with open(f'out/scores/{model.config}_scores.json', 'w+') as f:
+        json.dump(results, f, indent=4)
+    exit(1)
 
 
 if __name__ == '__main__':

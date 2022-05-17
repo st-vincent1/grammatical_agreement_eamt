@@ -234,6 +234,7 @@ class Transformer(nn.Module):
         return top_hypotheses
 
     def forward(self, inp_tokens, gold_tokens, inp_lengths, types, generate=False, beam_size=1, tag_dec=False):
+        assert types is not None
         assert torch.equal(self.decoder.generator.proj.weight.data, self.embed.token_embed.weight.data), "Tied weights are different."
         batch_size = inp_tokens.size(0)
         max_enc_len = inp_tokens.size(1)

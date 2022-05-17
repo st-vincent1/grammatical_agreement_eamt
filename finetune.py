@@ -71,7 +71,6 @@ def main():
         cxt_vocab = build_context_vocab(tag_list)
         model.cxt_vocab = cxt_vocab
         model.add_coher_embedding(len(cxt_vocab), device)
-
     elif params.config == 'out_bias':
         cxt_vocab = build_context_vocab(tag_list)
         model.decoder.generator.config = 'out_bias'

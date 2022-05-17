@@ -41,22 +41,7 @@ def build_dev_and_test_for_finetuning() -> None:
 
     def build_balanced_set(data):
         attribs = Attributes()
-        groups = {
-            r'<sp:masculine>,[^,]*,[^,]*,[^,]*': 800,
-            r'<sp:feminine>,[^,]*,[^,]*,[^,]*': 800,
-            r'.*,<il:feminine>,<plural>,<informal>': 200,
-            r'.*,<il:masculine>,<plural>,<informal>': 200,
-            r'.*,,<plural>,<informal>': 200,
-            r'.*,,<singular>,<informal>': 200,
-            r'.*,<il:feminine>,<singular>,<informal>': 200,
-            r'.*,<il:masculine>,<singular>,<informal>': 200,
-            r'.*,<il:feminine>,<plural>,<formal>': 200,
-            r'.*,<il:masculine>,<plural>,<formal>': 200,
-            r'.*,<il:mixed>,<plural>,<formal>': 200,
-            r'.*,<il:feminine>,<singular>,<formal>': 200,
-            r'.*,<il:masculine>,<singular>,<formal>': 200,
-            r'.*,,,<formal>': 200,
-        }
+        groups = attribs.groups 
         balanced_set = pd.DataFrame(columns=['en', 'pl', 'cxt', 'marking'])
         temporary_group_df = pd.DataFrame(columns=['en', 'pl', 'cxt'])
         for pattern, count in groups.items():

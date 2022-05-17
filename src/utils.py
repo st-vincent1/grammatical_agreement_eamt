@@ -98,18 +98,19 @@ def inference(model, data_iter, vocab, cxt_vocab, sp, evaluate=False):
                 inp_lengths,
                 types,
                 generate=True,
-                beam_size=1,
+                beam_size=5,
                 tag_dec=('dec' in model.config and 'tag' in model.config)
             )
         sources += tensor2text(vocab, inp_tokens.cpu(), sp)
         references += tensor2text(vocab, ref_tokens.cpu(), sp)
         hypotheses += tensor2text(vocab, raw_tokens.cpu(), sp)
+        if model.config != 'pretrain' or evaluate:
+            context += tensor2cxt(cxt_vocab, types.cpu())
+            if evaluate:
+                marked += tensor2cxt(cxt_vocab, marking.cpu())
+    
+    return sources, references, hypotheses, context, marked
 
-        context += tensor2cxt(cxt_vocab, types.cpu()) if model.config != 'pretrain' else None
-        marked += tensor2cxt(cxt_vocab, marking.cpu()) if model.config != 'pretrain' else None
-
-    text = [(a, b, c, d, e) for (a, b, c, d, e) in zip(sources, references, hypotheses, context, marked) if len(b) > 0]
-    return zip(*text)
 
 
 def preprocess(batch, eos_idx, config, evaluate=False):
@@ -120,12 +121,12 @@ def preprocess(batch, eos_idx, config, evaluate=False):
     """
     device = torch.device('cuda:0')
     inp_tokens, out_tokens = batch.en.to(device), batch.pl.to(device)
-    if config != 'pretrain':
+    if config != 'pretrain' or evaluate:
         cxt = batch.cxt.to(device)
         if evaluate:
             return inp_tokens, out_tokens, get_lengths(inp_tokens, eos_idx), cxt, batch.marking.to(device)
-        return inp_tokens, out_tokens, get_lengths(inp_tokens, eos_idx), cxt
-    return inp_tokens, out_tokens, get_lengths(inp_tokens, eos_idx), None
+        return inp_tokens, out_tokens, get_lengths(inp_tokens, eos_idx), cxt, None
+    return inp_tokens, out_tokens, get_lengths(inp_tokens, eos_idx), None, None
 
 
 def tensor2cxt(vocab, tensor):

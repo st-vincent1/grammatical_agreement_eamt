@@ -29,7 +29,22 @@ class Attributes:
             '<informal>': '<formal>',
             '': ''
         }
-
+        self.groups = {
+            r'<sp:masculine>,[^,]*,[^,]*,[^,]*': 800,
+            r'<sp:feminine>,[^,]*,[^,]*,[^,]*': 800,
+            r'.*,<il:feminine>,<plural>,<informal>': 200,
+            r'.*,<il:masculine>,<plural>,<informal>': 200,
+            r'.*,,<plural>,<informal>': 200,
+            r'.*,,<singular>,<informal>': 200,
+            r'.*,<il:feminine>,<singular>,<informal>': 200,
+            r'.*,<il:masculine>,<singular>,<informal>': 200,
+            r'.*,<il:feminine>,<plural>,<formal>': 200,
+            r'.*,<il:masculine>,<plural>,<formal>': 200,
+            r'.*,<il:mixed>,<plural>,<formal>': 200,
+            r'.*,<il:feminine>,<singular>,<formal>': 200,
+            r'.*,<il:masculine>,<singular>,<formal>': 200,
+            r'.*,,,<formal>': 200
+        }
     def identify_from_type(self, attr_type):
         for attr, types in self.types.items():
             if attr_type in types:
@@ -40,8 +55,14 @@ class Attributes:
     def types_to_str(types):
         types = {k: v if v is not None else '' for k, v in types.items()}
         return f"{types['SpGender']},{types['IlGender']},{types['IlNumber']},{types['Formality']}"
-
-
+    
+    def sort_group(self, group):
+        pattern = []
+        for attrib in self.types.keys():
+            for type_ in self.types[attrib]:
+                if type_ in group:
+                    pattern.append(type_)
+        return ' '.join(pattern)
 class Detector:
     def __init__(self):
         try:
@@ -74,6 +95,7 @@ class Detector:
         # A list of bools depending on whether ith sentence agreed to the ith type
         correct = [self.verify_context(sents[i], en_sents[i], attr_type[i]) for i in tqdm(range(len(sents)))]
         incorrect = [self.verify_context(sents[i], en_sents[i], rev_type[i]) for i in tqdm(range(len(sents)))]
+        
         corr = {
             x: np.sum(np.array(correct)
                       & np.array([t_ in self.attribs.types[x] for t_ in attr_type]))
