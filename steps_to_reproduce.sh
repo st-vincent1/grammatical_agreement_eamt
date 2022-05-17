@@ -1,12 +1,15 @@
 #!/bin/bash
 
 # Install
-# sentencepiece
-# pytorch 1.7.1
-# torchtext 0.8.1
-# spacy
-# spacy model (morfeusz)
+# python 3.8.10
+# pip install sentencepiece sacrebleu
+# pytorch 1.7.1 torchtext 0.8.1
+# conda install pytorch==1.7.1 torchvision==0.8.2 torchaudio==0.7.2 cudatoolkit=10.2 torchtext=0.8.1 -c pytorch
 
+# spacy
+# conda install spacy
+# spacy model (morfeusz)
+# python -m pip install lib/pl_spacy_model_morfeusz_big-0.1.0.tar.gz
 # Run prepare_pretraining_data.sh
 # Run pretrain.py which pretrains model
 

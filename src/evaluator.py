@@ -27,9 +27,10 @@ def evaluate(params, model, iters, vocab, cxt_vocab, baseline=False):
     sp = spm.SentencePieceProcessor(model_file=params.spm)
     srcs, hyps, refs, marks, cxts = {}, {}, {}, {}, {}
     results = {}
+
     def generate_chrf_for_groups(df):
         chrf = CHRF(word_order=2)
-        if 'dec' in params.config: 
+        if 'dec' in params.config:
             df.cxts = df.cxts.apply(attribs.sort_group)
         for group in attribs.groups.keys():
             group = re.sub(r',|\.|\*|\[|\]|\^', ' ', group).strip()
@@ -41,6 +42,7 @@ def evaluate(params, model, iters, vocab, cxt_vocab, baseline=False):
             group_hypotheses = df[df.cxts.str.contains(pattern)]
             results[f'chrF++:{group}'] = chrf.corpus_score(group_hypotheses['hyps'].tolist(),
                                                            [group_hypotheses['refs'].tolist()]).score
+
     attribs = Attributes()
     detector = Detector()
 
@@ -74,7 +76,7 @@ def evaluate(params, model, iters, vocab, cxt_vocab, baseline=False):
 
     # For plotting purposes, calculate chrF++ scores for each group# for key in results.keys():
     df = pd.DataFrame({'hyps': hyps['full'], 'refs': refs['full'], 'cxts': cxts['full']})
-    
+
     generate_chrf_for_groups(df)
 
     logging.info(results)

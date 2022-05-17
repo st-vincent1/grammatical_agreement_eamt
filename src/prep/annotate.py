@@ -1,8 +1,8 @@
+import logging
+from argparse import ArgumentParser
+
 from src.models import Detector
 from src.prep.utils import read_from_file
-import logging
-from tqdm import tqdm
-from argparse import ArgumentParser
 
 
 def compute_pr(answers, golden_answers):
@@ -44,17 +44,17 @@ def annotate_corpus(prefix: str, detector: Detector) -> None:
 
 
 if __name__ == '__main__':
-    detector = Detector()
+    d = Detector()
     parser = ArgumentParser()
     parser.add_argument('--prefix', default=None)
     args = parser.parse_args()
     # Evaluate on a sample
-    f1 = evaluate_on_sample('data/detector_dev/detector_sample', detector)
+    f1 = evaluate_on_sample('data/detector_dev/detector_sample', d)
 
     assert f1 > 99, "Threshold not reached; quitting"
     logging.info('--- Threshold reached. Annotating corpus...')
     if args.prefix is None:
         for split_set in ['dev', 'test']:
-            annotate_corpus(f'data/raw/en-pl.{split_set}', detector)
+            annotate_corpus(f'data/raw/en-pl.{split_set}', d)
     else:
-        annotate_corpus(args.prefix, detector)
+        annotate_corpus(args.prefix, d)

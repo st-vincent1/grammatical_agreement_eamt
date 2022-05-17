@@ -7,6 +7,7 @@ import numpy as np
 
 logging.basicConfig(level=logging.INFO)
 
+
 class Attributes:
     def __init__(self):
         self.types = {
@@ -45,6 +46,7 @@ class Attributes:
             r'.*,<il:masculine>,<singular>,<formal>': 200,
             r'.*,,,<formal>': 200
         }
+
     def identify_from_type(self, attr_type):
         for attr, types in self.types.items():
             if attr_type in types:
@@ -55,7 +57,7 @@ class Attributes:
     def types_to_str(types):
         types = {k: v if v is not None else '' for k, v in types.items()}
         return f"{types['SpGender']},{types['IlGender']},{types['IlNumber']},{types['Formality']}"
-    
+
     def sort_group(self, group):
         pattern = []
         for attrib in self.types.keys():
@@ -63,6 +65,8 @@ class Attributes:
                 if type_ in group:
                     pattern.append(type_)
         return ' '.join(pattern)
+
+
 class Detector:
     def __init__(self):
         try:
@@ -95,7 +99,7 @@ class Detector:
         # A list of bools depending on whether ith sentence agreed to the ith type
         correct = [self.verify_context(sents[i], en_sents[i], attr_type[i]) for i in tqdm(range(len(sents)))]
         incorrect = [self.verify_context(sents[i], en_sents[i], rev_type[i]) for i in tqdm(range(len(sents)))]
-        
+
         corr = {
             x: np.sum(np.array(correct)
                       & np.array([t_ in self.attribs.types[x] for t_ in attr_type]))
@@ -281,6 +285,7 @@ class Detector:
                       r"lord|master|messieurs|dames|monsieur|madam[e ]|ma'am", en_sentence.lower()):
             return False
         return True
+
     @staticmethod
     def no_det(sentence, token):
         """'państwo poszli' vs 'ci państwo poszli'. The latter must be recognised as wrong."""
