@@ -1,8 +1,6 @@
 import copy
 import itertools
 import logging
-import pickle
-import re
 import random
 import os
 
@@ -147,7 +145,7 @@ def add_tags_to_vocab(vocab, new_terms):
 
 
 def get_tags(row):
-    """ Get tags from cxt row, shuffle them, pad with nulls"""
+    """Get tags from cxt row, shuffle them, pad with nulls"""
     types = row['cxt'].split(',')
     tags = [t_ for t_ in types if t_]
     random.shuffle(tags)

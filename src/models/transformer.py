@@ -1,7 +1,4 @@
 import math
-import random
-
-import numpy as np
 import torch
 import torch.nn.functional as F
 from torch import nn
@@ -485,8 +482,7 @@ class SublayerConnection(nn.Module):
 
 
 def Linear(in_features, out_features, bias=True, uniform=True):
-    """
-    Creates a linear layer & initialises weights with Xavier uniform.
+    """    Creates a linear layer & initialises weights with Xavier uniform.
     Torch Linear INVERTS the tensor dimensions when created, i.e. Linear(in, out) is a tensor(out, in)
     """
     m = nn.Linear(in_features, out_features, bias)

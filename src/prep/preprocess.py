@@ -10,6 +10,7 @@ REMOVE_TOKEN = "@Remove@"
 
 x: int = 5
 
+
 @dataclass
 class SententialPreprocessor:
     languages: List[str]
@@ -45,7 +46,7 @@ class SententialPreprocessor:
     @staticmethod
     def manual_clean(sentence: str, lang: str) -> str:
         def common_errors(sentence: str, lang: str) -> str:
-            """ https://github.com/rbawden/PrepCorpus-OpenSubs/blob/master/scripts-opensubs/clean-up-subs.py """
+            """https://github.com/rbawden/PrepCorpus-OpenSubs/blob/master/scripts-opensubs/clean-up-subs.py"""
             if lang == "en":
                 sentence = sentence.replace('l"m', "I'm")
                 sentence = re.sub('([^ ])l" ?II', r"\1I'll", sentence)
@@ -97,7 +98,7 @@ class SententialPreprocessor:
 
     @staticmethod
     def lang_check(sentence, lang):
-        """ Language prediction-based clean. Is only reliable for English but English is the main offender so it works
+        """Language prediction-based clean. Is only reliable for English but English is the main offender so it works
         well in this case. Removes sentence if it's in English (and monolingual corpus is in another language)
         """
         if sentence == REMOVE_TOKEN: return sentence

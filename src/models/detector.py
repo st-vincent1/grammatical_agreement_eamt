@@ -74,7 +74,6 @@ class Detector:
             self.nlp = nlp
         except ValueError:
             assert hasattr(self, 'nlp')
-            pass
         with open('data/stopwords', 'r') as f:
             stopwords = f.read().splitlines()
         self.stopwords = stopwords
@@ -114,8 +113,7 @@ class Detector:
         return corr, incorr
 
     def verify_context(self, sentence: str, en_sentence: str, predicted_type: str) -> bool:
-        """
-        Verify whether the predicted type matches actual types detected from the given sentences.
+        """Verify whether the predicted type matches actual types detected from the given sentences.
 
         :param sentence: raw sentence in Polish.
         :param en_sentence: raw sentence in English.
@@ -140,16 +138,16 @@ class Detector:
         """
         parsed_pl = self.parse_sentence(sent_pair['pl'])
         types = self.initialise_types()
-        """1. Check SpGender."""
+        # 1. Check SpGender.
         types = self.check_speaker_gender(parsed_pl, types=types)
-        """2. Check formality. If sentence is matched as formal, then return the right features and quit."""
+        # 2. Check formality. If sentence is matched as formal, then return the right features and quit.
         # Lemma suggests formal addressing and no_det makes sure that there are no determinants (e.g. lady vs this lady)
         types, sent_is_formal = self.check_if_formal(parsed_pl, sent_pair['en'], types)
         if sent_is_formal:
             return types
 
-        """3. If sentence did not match as formal, then keep looking for other interlocutor features. 
-        If found, annotate sentence as informal."""
+        # 3. If sentence did not match as formal, then keep looking for other interlocutor features.
+        # If found, annotate sentence as informal.
         types = self.check_interlocutor(parsed_pl, types)
         return types
 
@@ -289,7 +287,6 @@ class Detector:
     @staticmethod
     def no_det(sentence, token):
         """'państwo poszli' vs 'ci państwo poszli'. The latter must be recognised as wrong."""
-        """Fails on 'pan takze"""
         for t in sentence:
             if t.head == token and t.dep_ == 'det':
                 return False

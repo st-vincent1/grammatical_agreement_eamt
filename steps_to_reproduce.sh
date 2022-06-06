@@ -6,10 +6,23 @@
 # pytorch 1.7.1 torchtext 0.8.1
 # conda install pytorch==1.7.1 torchvision==0.8.2 torchaudio==0.7.2 cudatoolkit=10.2 torchtext=0.8.1 -c pytorch
 
-# spacy
-# conda install spacy
-# spacy model (morfeusz)
+
+# INSTALLING DETECTOR
+# 1. install spacy
+# conda install -c conda-forge spacy==2.2.4
+
+# 2. Install tensorflow
+# pip install tensorflow=2.2.0
+
+# 3. Install keras
+# pip install keras==2.3.1
+
+# 4. Install Morfeusz
+# pip install morfeusz2
 # python -m pip install lib/pl_spacy_model_morfeusz_big-0.1.0.tar.gz
+
+# DONE
+
 # Run prepare_pretraining_data.sh
 # Run pretrain.py which pretrains model
 

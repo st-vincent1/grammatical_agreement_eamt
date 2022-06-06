@@ -59,7 +59,7 @@ def pretrain(params, vocab, model, optimizer, train_iters, dev_iters, save_path,
     for ep in range(1, params.pt.max_epoch + 1):
         start_time = time.time()
         train_loss, iter_step = pretrain_epoch(iter_step)
-        bleu, chrf = validate(params, dev_iters, model, vocab)
+        bleu, chrf = validate(params, vocab, _, model, dev_iters)
         end_time = time.time()
         epoch_mins, epoch_secs = epoch_time(start_time, end_time)
         if chrf >= best_chrf:

@@ -61,7 +61,7 @@ def build_dev_and_test_for_finetuning() -> None:
 
 
 def balance_training_data_for_finetuning() -> None:
-    data = read_from_file(f'data/raw/en-pl.train', config='finetune')
+    data = read_from_file('data/raw/en-pl.train', config='finetune')
     data['singular-informal'] = data.cxt.str.contains(r'^,,<singular>,<informal>')
     print(len(data))
     leftover_samples = data[data['singular-informal']].sample(frac=0.05)
@@ -90,7 +90,7 @@ def create_amb_test_set() -> None:
 
 
 if __name__ == '__main__':
-    if not os.path.exists(f'data/finetune/en-pl.amb.bpe.pl'):
+    if not os.path.exists('data/finetune/en-pl.amb.bpe.pl'):
         create_amb_test_set()
     if not os.path.exists('data/finetune/en-pl.test.bpe.pl') or not os.path.exists('data/finetune/en-pl.dev.bpe.pl'):
         build_dev_and_test_for_finetuning()

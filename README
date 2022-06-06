@@ -1,0 +1,28 @@
+# Controlling Extra-Textual Attributes about Dialogue Participants -- A Case Study of English-to-Polish Neural Machine Translation
+
+## Description
+This repository contains code associated with the publication "Controlling Extra-Textual Attributes about Dialogue Participants -- A Case Study of English-to-Polish Neural Machine Translation", EAMT2022.
+
+## Table of Contents
+
+## Installation
+
+For installation instructions, head to `INSTALL.md`
+
+## Downloading data and models
+
+1. Clone and navigate to the repository.
+    - To download the models, run `bash download/models.sh`.
+    - To download all data (training and test), run `bash download/data.sh`.
+    - To download just test data for reproducing results, run `bash download/data.sh -test`.
+3. Run `python test_dl.py` to make sure that the files have downloaded correctly.
+
+## Contributing
+
+If you find a bug or wish to request a feature, please submit
+an [https://github.com/st-vincent1/grammatical_agreement_eamt/issues/new/choose](Issue).
+
+## References
+TODO
+Morfeusz
+Pytorch

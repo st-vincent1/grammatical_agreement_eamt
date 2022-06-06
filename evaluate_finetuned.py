@@ -1,5 +1,4 @@
 import json
-import re
 from argparse import ArgumentParser
 from os import path
 

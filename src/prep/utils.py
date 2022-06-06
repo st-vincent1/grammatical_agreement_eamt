@@ -35,8 +35,7 @@ def time_converter(time_str):
 
 
 def parse_subtitles(tree_root, return_type=dict()):
-    """
-    Extract subtitles from xml files as text
+    """    Extract subtitles from xml files as text
     :param tree_root: root of the xml tree
     :return: subtitles : a dictionary where key is subtitle ID and value is text and timestamps
     """
@@ -141,7 +140,7 @@ def train_spm(sentence_list: List[str]) -> None:
         for line in sentence_list:
             f.write(line + "\n")
     spm.SentencePieceTrainer.train(input=train_data,
-                                   model_prefix=f'data/sentencepiece/spm', vocab_size=16000,
+                                   model_prefix='data/sentencepiece/spm', vocab_size=16000,
                                    character_coverage=0.9995,
                                    input_sentence_size=len(sentence_list),
                                    shuffle_input_sentence=True)

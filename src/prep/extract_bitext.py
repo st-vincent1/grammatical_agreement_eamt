@@ -1,16 +1,12 @@
 import xml.etree.ElementTree as ET
-from argparse import ArgumentParser
 import os
-import sys
 from tqdm import tqdm
-from utils import *
+from utils import parse_subtitles, write_to_file_extractor
 import random
 
 
 def parse_documents():
-    pairname = "en-pl"
-
-    align_filename = f"data/raw/OpenSubtitles/en-pl/en-pl.xml"
+    align_filename = "data/raw/OpenSubtitles/en-pl/en-pl.xml"
     """
     Part 1: Parse alignments
     """
@@ -18,7 +14,7 @@ def parse_documents():
     collection = align_tree.getroot()
     # Identify aligned files
     path_to_xml = 'data/raw/OpenSubtitles/xml'
-    path_to_output = f"data"
+    path_to_output = "data"
 
     test_ids = []
     if not os.path.exists(path_to_output):
@@ -55,14 +51,15 @@ def parse_documents():
             split_set = 'test'
         if split_set != 'train':
             test_ids += [en_file, pl_file]
-        """
+
         # Print context and main sentences to files
-        # """
         for en, pl in pairs_to_parse:
             write_to_file_extractor(os.path.join(path_to_output, f"en-pl.{split_set}.en"), en_subtitles, en)
             write_to_file_extractor(os.path.join(path_to_output, f"en-pl.{split_set}.pl"), pl_subtitles, pl)
     with open('data/opensubtitles_test.ids', 'w+') as f:
         for line in test_ids:
             f.write(line + "\n")
+
+
 if __name__ == '__main__':
     parse_documents()

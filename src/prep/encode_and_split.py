@@ -3,7 +3,8 @@ import numpy as np
 import pandas as pd
 import sentencepiece as spm
 
-from utils import read_from_file, preprocess, save_leftovers, write_to_file, prepare_coherence_dev, train_spm
+from typing import List
+from utils import read_from_file, preprocess, write_to_file, train_spm
 
 
 def read_data():
@@ -24,8 +25,8 @@ if __name__ == '__main__':
     s = spm.SentencePieceProcessor(model_file='data/sentencepiece/spm.model')
 
 
-    def spm_encode(df):
-        def encode_column(col):
+    def spm_encode(df) -> pd.DataFrame:
+        def encode_column(col) -> List[str]:
             c = df[col].tolist()
             c_spm = s.encode(c, out_type='str', nbest_size=-1, alpha=0.5)
             c_spm = [' '.join(x) for x in c_spm]
