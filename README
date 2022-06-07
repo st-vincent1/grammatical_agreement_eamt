@@ -1,8 +1,7 @@
 # Controlling Extra-Textual Attributes about Dialogue Participants -- A Case Study of English-to-Polish Neural Machine Translation
 
 ## Description
-This repository contains code associated with the publication "Controlling Extra-Textual Attributes about Dialogue Participants -- A Case Study of English-to-Polish Neural Machine Translation", EAMT2022.
-
+This repository contains code associated with the publication ["Controlling Extra-Textual Attributes about Dialogue Participants -- A Case Study of English-to-Polish Neural Machine Translation", EAMT2022](https://aclanthology.org/2022.eamt-1.15/).
 ## Table of Contents
 
 ## Installation
@@ -11,18 +10,34 @@ For installation instructions, head to `INSTALL.md`
 
 ## Downloading data and models
 
-1. Clone and navigate to the repository.
-    - To download the models, run `bash download/models.sh`.
-    - To download all data (training and test), run `bash download/data.sh`.
+Assuming you have cloned the repository and navigated to it:
+1. To download the models, run `bash download/models.sh`.
+2. To download all data (training and test), run `bash download/data.sh`.
     - To download just test data for reproducing results, run `bash download/data.sh -test`.
-3. Run `python test_dl.py` to make sure that the files have downloaded correctly.
+
+Alternatively, the data can be downloaded [here](todo data link).
 
 ## Contributing
 
 If you find a bug or wish to request a feature, please submit
-an [https://github.com/st-vincent1/grammatical_agreement_eamt/issues/new/choose](Issue).
+an [Issue](https://github.com/st-vincent1/grammatical_agreement_eamt/issues/new/choose).
+
+## License
+
+The contents of this repository have been released under MIT license.
+
+If you use the resources provided, please include the following citation in your work:
+[Controlling Extra-Textual Attributes about Dialogue Participants: A Case Study of English-to-Polish Neural Machine Translation](https://aclanthology.org/2022.eamt-1.15) (Vincent et al., EAMT 2022)
 
 ## References
 TODO
 Morfeusz
 Pytorch
+
+
+TODO:
+1. Include references
+2. Generalise tool and write script to use it.
+3. Upload data and models and provide links.
+4. Write scripts to download data/models.
+5. Test the whole pipeline.
