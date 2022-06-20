@@ -67,3 +67,6 @@ out/*
 logs/*
 slurm/
 .idea/
+
+todo
+*zip

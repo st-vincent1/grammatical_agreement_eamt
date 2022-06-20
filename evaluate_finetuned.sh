@@ -7,4 +7,4 @@ done
 
 # Paired bootstrap resampling: only run after evaluation was finished and you checked which system is performing best with chrF++
 
-#sacrebleu out/finetuned/en-pl.test.ref -i out/finetuned/en-pl.tag_enc.out out/finetuned/en-pl.*.out -m bleu chrf --chrf-word-order 2 --paired-bs
+sacrebleu out/finetuned/en-pl.test.ref -i out/finetuned/en-pl.tag_enc.out out/finetuned/en-pl.*.out -m bleu chrf --chrf-word-order 2 --paired-bs
