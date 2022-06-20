@@ -19,5 +19,8 @@ Install dependencies for the detection tool:
 ```
 conda install -c conda-forge spacy==2.2.4
 pip install tensorflow==2.2.0 keras==2.3.1 morfeusz2 sentencepiece sacrebleu mosestokenizer pycld3
+```
+Run `mkdir -p lib/`, download `pl_spacy_model_morfeusz_big-0.1.0.tar.gz` from [the bottom of this list](http://zil.ipipan.waw.pl/SpacyPL?action=AttachFile&do=view&target=pl_spacy_model_morfeusz_big-0.1.0.tar.gz) and put in the `lib/` directory. Then install
+```
 python -m pip install lib/pl_spacy_model_morfeusz_big-0.1.0.tar.gz
 ```
