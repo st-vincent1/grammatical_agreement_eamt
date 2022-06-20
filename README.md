@@ -13,8 +13,8 @@ For installation instructions, head to `INSTALL.md`
 The data can be downloaded, cleaned and prepared from scratch by following the instructions below:
 1.  `bash prepare_pretraining_data.sh` (download and prepare raw data)
 2.  `bash src/annotation_wrapper.sh` (annotate training data)
-4.  `python -m src.prep.annotate` (annotate dev/test data)
-5.  `python postprocess_annotated_data.py`
+3.  `python -m src.prep.annotate` (annotate dev/test data)
+4.  `python postprocess_annotated_data.py`
 
 Alternatively, it can be downloaded [here](todo data link). Once downloaded, data should be inserted at the root of this directory.
 
