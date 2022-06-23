@@ -16,7 +16,7 @@ The data can be downloaded, cleaned and prepared from scratch by following the i
 3.  `python -m src.prep.annotate` (annotate dev/test data)
 4.  `python postprocess_annotated_data.py`
 
-Alternatively, it can be downloaded [here](todo data link). Once downloaded, data should be inserted at the root of this directory.
+Alternatively, it can be downloaded [here](10.15131/shef.data.20101406). Once downloaded, data should be inserted at the root of this directory.
 
 ## Downloading or training models
 
